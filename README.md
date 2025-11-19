@@ -718,7 +718,7 @@ For issues and feature requests, please open a GitHub issue.
 
 **Name**: Tawfik Habib  
 **Email**: twfkhabib@gmail.com  
-**GitHub**: https://github.com/tawfikhabib(https://github.com/tawfikhabib)
+**GitHub**: https://github.com/tawfikhabib
 
 ---
 
