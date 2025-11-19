@@ -1,0 +1,633 @@
+openapi: 3.0.3
+info:
+  title: E-Commerce Order Management System API
+  description: Versioned REST API for products, orders, inventory and auth.
+  version: "1.0.0"
+servers:
+  - url: "/api/v1"
+    description: API server
+tags:
+  - name: Auth
+  - name: Products
+  - name: Orders
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  schemas:
+    ProductImport:
+      type: object
+      properties:
+        id:
+          type: integer
+        path:
+          type: string
+        uploader_id:
+          type: integer
+          nullable: true
+        status:
+          type: string
+          enum: [pending, processing, completed, failed]
+        results_path:
+          type: string
+          nullable: true
+        errors:
+          type: array
+          items:
+            type: object
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+      example:
+        id: 1
+        path: "imports/products/import.csv"
+        uploader_id: 2
+        status: "completed"
+        results_path: "imports/products/import-results.json"
+        errors: []
+        created_at: "2025-11-18T12:00:00Z"
+        updated_at: "2025-11-18T12:05:00Z"
+    ErrorResponse:
+      type: object
+      properties:
+        message:
+          type: string
+        errors:
+          type: object
+      example:
+        message: "Validation failed"
+        errors: { "email": ["The email field is required."] }
+    TokenResponse:
+      type: object
+      properties:
+        access_token:
+          type: string
+        token_type:
+          type: string
+        expires_in:
+          type: integer
+        refresh_token:
+          type: string
+      example:
+        access_token: "eyJ0eXAi..."
+        token_type: "bearer"
+        expires_in: 3600
+        refresh_token: "def502..."
+    User:
+      type: object
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        email:
+          type: string
+      example:
+        id: 1
+        name: "Admin User"
+        email: "admin@example.com"
+    ProductVariant:
+      type: object
+      properties:
+        id:
+          type: integer
+        sku:
+          type: string
+        name:
+          type: string
+        attributes:
+          type: object
+        price:
+          type: number
+          format: float
+        quantity:
+          type: integer
+    Product:
+      type: object
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        sku:
+          type: string
+        description:
+          type: string
+        price:
+          type: number
+          format: float
+        cost:
+          type: number
+          format: float
+        quantity:
+          type: integer
+        low_stock_threshold:
+          type: integer
+        is_active:
+          type: boolean
+        vendor:
+          $ref: '#/components/schemas/User'
+        variants:
+          type: array
+          items:
+            $ref: '#/components/schemas/ProductVariant'
+      example:
+        id: 10
+        name: "T-Shirt"
+        sku: "TSHIRT-001"
+        description: "100% cotton t-shirt"
+        price: 19.99
+        cost: 8.50
+        quantity: 120
+        low_stock_threshold: 10
+        is_active: true
+        vendor: { id: 2, name: "Vendor 1", email: "vendor@example.com" }
+        variants: []
+    OrderItem:
+      type: object
+      properties:
+        product_id:
+          type: integer
+        product_name:
+          type: string
+        product_variant_id:
+          type: integer
+        quantity:
+          type: integer
+        price:
+          type: number
+          format: float
+        subtotal:
+          type: number
+          format: float
+    Order:
+      type: object
+      properties:
+        id:
+          type: integer
+        order_number:
+          type: string
+        status:
+          type: string
+          enum: [pending, processing, shipped, delivered, cancelled]
+        customer:
+          $ref: '#/components/schemas/User'
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/OrderItem'
+        subtotal:
+          type: number
+        tax_amount:
+          type: number
+        shipping_amount:
+          type: number
+        total:
+          type: number
+        created_at:
+          type: string
+          format: date-time
+      example:
+        id: 100
+        order_number: "ORD-0000012345"
+        status: "pending"
+        customer: { id: 5, name: "Jane Doe", email: "jane@example.com" }
+        items:
+          - product_id: 10
+            product_name: "T-Shirt"
+            product_variant_id: null
+            quantity: 2
+            price: 19.99
+            subtotal: 39.98
+        subtotal: 39.98
+        tax_amount: 3.20
+        shipping_amount: 5.00
+        total: 48.18
+paths:
+  /auth/register:
+    post:
+      tags: [Auth]
+      summary: Register a new user
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name: { type: string }
+                email: { type: string }
+                password: { type: string }
+                password_confirmation: { type: string }
+                role: { type: string, enum: [admin,vendor,customer] }
+              required: [name, email, password, password_confirmation]
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+        '422':
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /auth/login:
+    post:
+      tags: [Auth]
+      summary: Login and receive tokens
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                email: { type: string }
+                password: { type: string }
+              required: [email, password]
+      responses:
+        '200':
+          description: Token response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TokenResponse'
+        '401':
+          description: Invalid credentials
+  /auth/me:
+    get:
+      tags: [Auth]
+      summary: Get authenticated user
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: User
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+
+  /imports/{id}:
+    get:
+      tags: [Products]
+      summary: Get product import status and results path
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Product import status
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProductImport'
+        '404':
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Unauthorized
+  /auth/logout:
+    post:
+      tags: [Auth]
+      summary: Logout (invalidate token)
+      security:
+        - bearerAuth: []
+      responses:
+        '200': { description: Logged out }
+  /auth/refresh:
+    post:
+      tags: [Auth]
+      summary: Refresh access token
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: New token
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TokenResponse'
+  /products:
+    get:
+      tags: [Products]
+      summary: List products (paginated)
+      parameters:
+        - in: query
+          name: page
+          schema: { type: integer }
+        - in: query
+          name: per_page
+          schema: { type: integer }
+        - in: query
+          name: vendor_id
+          schema: { type: integer }
+      responses:
+        '200':
+          description: Paginated products
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Product'
+                  meta:
+                    type: object
+    post:
+      tags: [Products]
+      summary: Create a new product (vendor/admin)
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name: { type: string }
+                sku: { type: string }
+                description: { type: string }
+                price: { type: number }
+                cost: { type: number }
+                quantity: { type: integer }
+                low_stock_threshold: { type: integer }
+                is_active: { type: boolean }
+              required: [name, sku, price, quantity]
+      responses:
+        '201':
+          description: Created product
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Product'
+        '403':
+          description: Forbidden
+  /products/{id}:
+    get:
+      tags: [Products]
+      summary: Get product by ID
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: integer }
+      responses:
+        '200':
+          description: Product
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Product' }
+        '404': { description: Not found }
+    put:
+      tags: [Products]
+      summary: Update product
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: integer }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        '200':
+          description: Updated
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Product' }
+    delete:
+      tags: [Products]
+      summary: Delete product
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: integer }
+      responses:
+        '200': { description: Deleted }
+        '403': { description: Forbidden }
+  /products/search:
+    get:
+      tags: [Products]
+      summary: Search products by query
+      parameters:
+        - in: query
+          name: q
+          schema: { type: string }
+        - in: query
+          name: page
+          schema: { type: integer }
+      responses:
+        '200':
+          description: Search results
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Product'
+  /products/low-stock:
+    get:
+      tags: [Products]
+      summary: List low stock products
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: query
+          name: threshold
+          schema: { type: integer }
+      responses:
+        '200':
+          description: Low stock products
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Product'
+  /orders:
+    get:
+      tags: [Orders]
+      summary: List orders (customer/admin)
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: query
+          name: page
+          schema: { type: integer }
+      responses:
+        '200':
+          description: Paginated orders
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Order'
+    post:
+      tags: [Orders]
+      summary: Create a new order
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                items:
+                  type: array
+                  items:
+                    type: object
+                    properties:
+                      product_id: { type: integer }
+                      product_variant_id: { type: integer }
+                      quantity: { type: integer }
+                      price: { type: number }
+                tax_amount: { type: number }
+                shipping_amount: { type: number }
+              required: [items]
+      responses:
+        '201':
+          description: Order created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Order'
+  /orders/{id}:
+    get:
+      tags: [Orders]
+      summary: Get order by ID
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: integer }
+      responses:
+        '200':
+          description: Order
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Order'
+        '403': { description: Forbidden }
+  /orders/{id}/confirm:
+    post:
+      tags: [Orders]
+      summary: Confirm order (deduct inventory)
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: integer }
+      responses:
+        '200': { description: Order confirmed }
+        '400': { description: Insufficient stock }
+  /orders/{id}/ship:
+    post:
+      tags: [Orders]
+      summary: Mark order as shipped
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: integer }
+      responses:
+        '200': { description: Order shipped }
+  /orders/{id}/deliver:
+    post:
+      tags: [Orders]
+      summary: Mark order as delivered
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: integer }
+      responses:
+        '200': { description: Order delivered }
+  /orders/{id}/cancel:
+    post:
+      tags: [Orders]
+      summary: Cancel order (restore inventory when applicable)
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: integer }
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                reason: { type: string }
+      responses:
+        '200': { description: Order cancelled }
+  /orders/{id}/invoice:
+    post:
+      tags: [Orders]
+      summary: Generate invoice PDF for order
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: integer }
+      responses:
+        '200':
+          description: Invoice generated
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  invoice_url: { type: string }
+
+security:
+  - bearerAuth: []
