@@ -714,4 +714,12 @@ For issues and feature requests, please open a GitHub issue.
 
 ---
 
-**Version**: 1.0.0 | **Status**: Production Ready | **Last Updated**: 2024-11-17
+## Author
+
+**Name**: Tawfik Habib  
+**Email**: twfkhabib@gmail.com  
+**GitHub**: https://github.com/tawfikhabib(https://github.com/tawfikhabib)
+
+---
+
+**Version**: 1.0.0 | **Status**: Production Ready | **Last Updated**: 2024-11-19
